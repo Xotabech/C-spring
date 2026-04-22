@@ -5,7 +5,6 @@
 #include <sstream>
 #include <vector>
 
-// ===================== Базовый класс CString =====================
 class CString {
 protected:
     void cleanup();
@@ -32,13 +31,12 @@ public:
 
     friend std::ostream& operator<<(std::ostream& os, const CString& str);
 
-    virtual void Show() = 0;                     // чисто виртуальная
+    virtual void Show() = 0;                     
 
     static int Input(const char* filename, std::vector<CString*>& v);
-    static void autotest();                      // статический метод тестирования
+    static void autotest();                      
 };
 
-// ===================== Класс Round_Child =====================
 class Round_Child : public CString {
 public:
     using CString::CString;
@@ -54,7 +52,6 @@ public:
     }
 };
 
-// ===================== Класс Square_Child =====================
 class Square_Child : public CString {
 public:
     using CString::CString;
@@ -70,7 +67,6 @@ public:
     }
 };
 
-// ===================== Реализация методов CString =====================
 CString::CString() : s(nullptr), n(0) {
     std::cout << "Default constructor" << std::endl;
 }
@@ -200,7 +196,6 @@ void CString::copyFrom(const char* str) {
     }
 }
 
-// ===================== Статический метод Input =====================
 int CString::Input(const char* filename, std::vector<CString*>& v) {
     std::ifstream f(filename);
     if (!f.is_open()) {
@@ -233,7 +228,6 @@ int CString::Input(const char* filename, std::vector<CString*>& v) {
     return 0;
 }
 
-// ===================== Статический метод autotest =====================
 void CString::autotest() {
     std::cout << "\n--- CString base functionality test (using Round_Child) ---" << std::endl;
     Round_Child s1("Hello");
@@ -268,18 +262,17 @@ void CString::autotest() {
     }
 
     for (auto* p : vec) {
-        delete p;   // вызов виртуального деструктора
+        delete p;  
     }
     std::cout << "All objects deleted." << std::endl;
 }
 
-// ===================== Главная функция =====================
 int main() {
     int for_test_input;
-    std::cout << "Input 2 for autotest (manual test removed)" << std::endl;
+    std::cout << "Input 2 for autotest " << std::endl;
     std::cin >> for_test_input;
     if (for_test_input == 2) {
-        CString::autotest();   // вызов статического метода
+        CString::autotest();   
     }
     return 0;
 }
