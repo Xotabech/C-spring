@@ -1,0 +1,273 @@
+#include <iostream>
+#include <cstring>
+#include <utility>
+#include <fstream>
+#include <sstream>
+#include <vector>
+
+// ===================== Базовый класс CString =====================
+class CString {
+protected:
+    void cleanup();
+    void copyFrom(const CString& other);
+    void copyFrom(const char* str);
+    char* s = nullptr;
+    size_t n = 0;
+
+public:
+    CString();
+    CString(size_t size);
+    CString(const char* str);
+    CString(const CString& other);
+    CString(CString&& other);
+    virtual ~CString();
+
+    CString& operator=(const CString& other);
+    CString& operator=(CString&& other);
+    CString& operator=(const char* str);
+    CString operator+(const CString& other) const;
+    char& operator[](size_t index);
+    const char& operator[](size_t index) const;
+    size_t length() const { return n; }
+
+    friend std::ostream& operator<<(std::ostream& os, const CString& str);
+
+    virtual void Show() = 0;
+
+    // Теперь Input принимает вектор фабрик
+    static int Input(const char* filename, std::vector<CString*>& v, const std::vector<class CFabric*>& fabrics);
+    static void autotest();
+};
+
+// ===================== Абстрактная фабрика =====================
+class CFabric {
+public:
+    virtual ~CFabric() {}
+    virtual CString* Create(const std::string& data) = 0;
+    virtual int GetType() const = 0;
+};
+
+// ===================== Конкретные фабрики =====================
+class RoundFabric : public CFabric {
+public:
+    CString* Create(const std::string& data) override {
+        Round_Child* obj = new Round_Child;
+        if (!data.empty()) *obj = data.c_str();
+        return obj;
+    }
+    int GetType() const override { return 1; }
+};
+
+class SquareFabric : public CFabric {
+public:
+    CString* Create(const std::string& data) override {
+        Square_Child* obj = new Square_Child;
+        if (!data.empty()) *obj = data.c_str();
+        return obj;
+    }
+    int GetType() const override { return 2; }
+};
+
+// ===================== Классы Round_Child и Square_Child =====================
+class Round_Child : public CString {
+public:
+    using CString::CString;
+    ~Round_Child() override { std::cout << "Round_Child destructor" << std::endl; }
+    void Show() override {
+        std::cout << "(";
+        if (s) std::cout << s;
+        std::cout << ")" << std::endl;
+    }
+};
+
+class Square_Child : public CString {
+public:
+    using CString::CString;
+    ~Square_Child() override { std::cout << "Square_Child destructor" << std::endl; }
+    void Show() override {
+        std::cout << "[";
+        if (s) std::cout << s;
+        std::cout << "]" << std::endl;
+    }
+};
+
+// ===================== Реализация методов CString =====================
+// ... (без изменений, кроме Input) ...
+
+CString::CString() : s(nullptr), n(0) {
+    std::cout << "Default constructor" << std::endl;
+}
+CString::CString(size_t size) : n(size) {
+    std::cout << "Constructor" << std::endl;
+    if (n > 0) { s = new char[n + 1]; s[n] = '\0'; }
+}
+CString::CString(const char* str) {
+    std::cout << "C-string Constructor" << std::endl;
+    if (str) { n = strlen(str); s = new char[n + 1]; strcpy(s, str); }
+    else { s = nullptr; n = 0; }
+}
+CString::CString(const CString& other) {
+    std::cout << "Copy constructor" << std::endl;
+    copyFrom(other);
+}
+CString::CString(CString&& other) : s(other.s), n(other.n) {
+    std::cout << "Using move constructor" << std::endl;
+    other.s = nullptr; other.n = 0;
+}
+CString::~CString() {
+    std::cout << "CString destructor" << std::endl;
+    cleanup();
+}
+CString& CString::operator=(const CString& other) {
+    std::cout << "Copy assignment operator" << std::endl;
+    if (this != &other) { cleanup(); copyFrom(other); }
+    return *this;
+}
+CString& CString::operator=(CString&& other) {
+    std::cout << "Move assignment operator" << std::endl;
+    if (this != &other) { cleanup(); s = other.s; n = other.n; other.s = nullptr; other.n = 0; }
+    return *this;
+}
+CString& CString::operator=(const char* str) {
+    std::cout << "Assignment from C-string" << std::endl;
+    if (s != str) { cleanup(); if (str) { n = strlen(str); s = new char[n + 1]; strcpy(s, str); } }
+    return *this;
+}
+CString CString::operator+(const CString& other) const {
+    std::cout << "Operator +" << std::endl;
+    CString result(n + other.n);
+    if (n > 0) strcpy(result.s, s);
+    if (other.n > 0) strcpy(result.s + n, other.s);
+    return result;
+}
+char& CString::operator[](size_t index) { return s[index]; }
+const char& CString::operator[](size_t index) const { return s[index]; }
+std::ostream& operator<<(std::ostream& os, const CString& str) {
+    if (str.s) os << str.s;
+    return os;
+}
+void CString::cleanup() { delete[] s; s = nullptr; n = 0; }
+void CString::copyFrom(const CString& other) {
+    if (other.s) { n = other.n; s = new char[n + 1]; strcpy(s, other.s); }
+    else { s = nullptr; n = 0; }
+}
+void CString::copyFrom(const char* str) {
+    if (str) { n = strlen(str); s = new char[n + 1]; strcpy(s, str); }
+    else { s = nullptr; n = 0; }
+}
+
+// Реализация Input с вектором фабрик
+int CString::Input(const char* filename, std::vector<CString*>& v, const std::vector<CFabric*>& fabrics) {
+    std::ifstream f(filename);
+    if (!f.is_open()) {
+        std::cerr << "Cannot open file: " << filename << std::endl;
+        return -1;
+    }
+
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty()) continue;
+        std::stringstream ss(line);
+        int type;
+        ss >> type;
+
+        std::string data;
+        if (ss.peek() == ' ') ss.get();
+        std::getline(ss, data);
+
+        // Ищем фабрику, которая умеет создавать объект данного типа
+        CString* obj = nullptr;
+        for (auto* fab : fabrics) {
+            if (fab->GetType() == type) {
+                obj = fab->Create(data);
+                break;
+            }
+        }
+        if (obj) v.push_back(obj);
+        else std::cerr << "Unknown type " << type << " in line: " << line << std::endl;
+    }
+    return 0;
+}
+
+// ===================== autotest с демонстрацией Input =====================
+void CString::autotest() {
+    // 1. Старые тесты (копирование, перемещение, конкатенация)
+    std::cout << "\n--- CString base functionality test (using Round_Child) ---" << std::endl;
+    Round_Child s1("Hello");
+    Round_Child s2 = "World";
+    Round_Child s3 = s1 + " " + s2;
+    std::cout << "s3: " << s3 << std::endl;
+
+    std::cout << "\n--- Copy operations ---" << std::endl;
+    Round_Child s4 = s3;
+    Round_Child s5;
+    s5 = s4;
+    std::cout << "s5: " << s5 << std::endl;
+
+    std::cout << "\n--- Move operations ---" << std::endl;
+    Round_Child s6 = std::move(s5);
+    std::cout << "s6: " << s6 << std::endl;
+    std::cout << "s5 after move: " << s5 << " (empty)" << std::endl;
+
+    Round_Child s7;
+    s7 = std::move(s6);
+    std::cout << "s7: " << s7 << std::endl;
+    std::cout << "s6 after move assignment: " << s6 << " (empty)" << std::endl;
+
+    // 2. Демонстрация работы Input с вектором фабрик
+    std::cout << "\n--- Testing Input with factory vector ---" << std::endl;
+
+    // Создаём вектор фабрик (можно было бы сделать глобальным, но для примера локальный)
+    std::vector<CFabric*> fabrics;
+    fabrics.push_back(new RoundFabric);
+    fabrics.push_back(new SquareFabric);
+
+    // Создаём временный файл с тестовыми данными
+    const char* testFileName = "test_input.txt";
+    std::ofstream testFile(testFileName);
+    testFile << "1 Hello world\n";
+    testFile << "2 Square brackets test\n";
+    testFile << "1 Another round\n";
+    testFile << "3 Unknown type should be ignored\n";
+    testFile.close();
+
+    std::vector<CString*> objects;
+    CString::Input(testFileName, objects, fabrics);
+
+    // Выводим полученные объекты через Show()
+    std::cout << "Objects read from file:" << std::endl;
+    for (auto* obj : objects) {
+        obj->Show();
+    }
+
+    // Очистка: удаляем объекты
+    for (auto* obj : objects) {
+        delete obj;
+    }
+    // Удаляем фабрики
+    for (auto* fab : fabrics) {
+        delete fab;
+    }
+
+    // Удаляем временный файл (не обязательно, но для чистоты)
+    std::remove(testFileName);
+
+    std::cout << "\n--- Test of polymorphic destructors (vector of base pointers) ---" << std::endl;
+    std::vector<CString*> vec;
+    vec.push_back(new Round_Child("Round object"));
+    vec.push_back(new Square_Child("Square object"));
+    for (auto* p : vec) p->Show();
+    for (auto* p : vec) delete p;
+    std::cout << "All objects deleted." << std::endl;
+}
+
+// ===================== Главная функция =====================
+int main() {
+    int for_test_input;
+    std::cout << "Input 2 for autotest (manual test removed)" << std::endl;
+    std::cin >> for_test_input;
+    if (for_test_input == 2) {
+        CString::autotest();
+    }
+    return 0;
+}
