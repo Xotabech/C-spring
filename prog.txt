@@ -251,8 +251,7 @@ void CString::autotest() {
     std::cout << "s7: " << s7 << std::endl;
     std::cout << "s6 after move assignment: " << s6 << " (empty)" << std::endl;
 
-    // Демонстрация полиморфного удаления и деструкторов
-    std::cout << "\n--- Testing destructors with polymorphic vector ---" << std::endl;
+    std::cout << "\n---" << std::endl;
     std::vector<CString*> vec;
     vec.push_back(new Round_Child("Round object"));
     vec.push_back(new Square_Child("Square object"));
