@@ -5,7 +5,6 @@
 #include <sstream>
 #include <vector>
 
-// ===================== Базовый класс CString =====================
 class CString {
 protected:
     void cleanup();
@@ -39,7 +38,6 @@ public:
     static void autotest();
 };
 
-// ===================== Абстрактная фабрика =====================
 class CFabric {
 public:
     virtual ~CFabric() {}
@@ -47,7 +45,6 @@ public:
     virtual int GetType() const = 0;
 };
 
-// ===================== Конкретные фабрики =====================
 class RoundFabric : public CFabric {
 public:
     CString* Create(const std::string& data) override {
@@ -68,7 +65,6 @@ public:
     int GetType() const override { return 2; }
 };
 
-// ===================== Классы Round_Child и Square_Child =====================
 class Round_Child : public CString {
 public:
     using CString::CString;
@@ -90,9 +86,6 @@ public:
         std::cout << "]" << std::endl;
     }
 };
-
-// ===================== Реализация методов CString =====================
-// ... (без изменений, кроме Input) ...
 
 CString::CString() : s(nullptr), n(0) {
     std::cout << "Default constructor" << std::endl;
@@ -156,7 +149,6 @@ void CString::copyFrom(const char* str) {
     else { s = nullptr; n = 0; }
 }
 
-// Реализация Input с вектором фабрик
 int CString::Input(const char* filename, std::vector<CString*>& v, const std::vector<CFabric*>& fabrics) {
     std::ifstream f(filename);
     if (!f.is_open()) {
@@ -175,7 +167,6 @@ int CString::Input(const char* filename, std::vector<CString*>& v, const std::ve
         if (ss.peek() == ' ') ss.get();
         std::getline(ss, data);
 
-        // Ищем фабрику, которая умеет создавать объект данного типа
         CString* obj = nullptr;
         for (auto* fab : fabrics) {
             if (fab->GetType() == type) {
@@ -189,9 +180,7 @@ int CString::Input(const char* filename, std::vector<CString*>& v, const std::ve
     return 0;
 }
 
-// ===================== autotest с демонстрацией Input =====================
 void CString::autotest() {
-    // 1. Старые тесты (копирование, перемещение, конкатенация)
     std::cout << "\n--- CString base functionality test (using Round_Child) ---" << std::endl;
     Round_Child s1("Hello");
     Round_Child s2 = "World";
@@ -214,15 +203,12 @@ void CString::autotest() {
     std::cout << "s7: " << s7 << std::endl;
     std::cout << "s6 after move assignment: " << s6 << " (empty)" << std::endl;
 
-    // 2. Демонстрация работы Input с вектором фабрик
     std::cout << "\n--- Testing Input with factory vector ---" << std::endl;
 
-    // Создаём вектор фабрик (можно было бы сделать глобальным, но для примера локальный)
     std::vector<CFabric*> fabrics;
     fabrics.push_back(new RoundFabric);
     fabrics.push_back(new SquareFabric);
 
-    // Создаём временный файл с тестовыми данными
     const char* testFileName = "test_input.txt";
     std::ofstream testFile(testFileName);
     testFile << "1 Hello world\n";
@@ -234,25 +220,20 @@ void CString::autotest() {
     std::vector<CString*> objects;
     CString::Input(testFileName, objects, fabrics);
 
-    // Выводим полученные объекты через Show()
     std::cout << "Objects read from file:" << std::endl;
     for (auto* obj : objects) {
         obj->Show();
     }
-
-    // Очистка: удаляем объекты
     for (auto* obj : objects) {
         delete obj;
     }
-    // Удаляем фабрики
     for (auto* fab : fabrics) {
         delete fab;
     }
 
-    // Удаляем временный файл (не обязательно, но для чистоты)
     std::remove(testFileName);
 
-    std::cout << "\n--- Test of polymorphic destructors (vector of base pointers) ---" << std::endl;
+    std::cout << "\n---" << std::endl;
     std::vector<CString*> vec;
     vec.push_back(new Round_Child("Round object"));
     vec.push_back(new Square_Child("Square object"));
@@ -261,10 +242,9 @@ void CString::autotest() {
     std::cout << "All objects deleted." << std::endl;
 }
 
-// ===================== Главная функция =====================
 int main() {
     int for_test_input;
-    std::cout << "Input 2 for autotest (manual test removed)" << std::endl;
+    std::cout << "Input 2 for autotest " << std::endl;
     std::cin >> for_test_input;
     if (for_test_input == 2) {
         CString::autotest();
