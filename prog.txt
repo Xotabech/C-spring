@@ -275,3 +275,36 @@ int main() {
     }
     return 0;
 }
+
+
+
+*
+#include <cstdlib>  
+#include <ctime>     
+#include <cctype>
+
+std::string random_string(size_t length) {
+    static const char charset[] = 
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789";
+    const size_t max_index = sizeof(charset) - 1;
+    std::string result;
+    result.reserve(length);
+    for (size_t i = 0; i < length; ++i) {
+        result += charset[rand() % max_index];
+    }
+    return result;
+}
+void create_random_strings(FILE* f) {
+    if (!f) return;
+    srand(static_cast<unsigned>(time(nullptr))); 
+
+    for (int i = 0; i < 1000; ++i) {
+        int type = (rand() % 2) + 1;          
+        size_t str_len = rand() % 16 + 5;     
+        std::string text = random_string(str_len);
+        fprintf(f, "%d %s\n", type, text.c_str());
+    }
+}
+*
