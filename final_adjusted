@@ -1,0 +1,361 @@
+#include <iostream>
+#include <cstring>
+#include <utility>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <chrono>
+#include <cstdlib>
+#include <ctime>
+#include <omp.h>
+
+#define N 500000
+#define THREADS 4
+
+class CString {
+protected:
+    void cleanup();
+    void copyFrom(const CString& other);
+    void copyFrom(const char* str);
+    char* s = nullptr;
+    size_t n = 0;
+
+public:
+    static bool verbose;
+
+    CString();
+    CString(size_t size);
+    CString(const char* str);
+    CString(const CString& other);
+    CString(CString&& other);
+    virtual ~CString();
+
+    CString& operator=(const CString& other);
+    CString& operator=(CString&& other);
+    CString& operator=(const char* str);
+    char& operator[](size_t index);
+    const char& operator[](size_t index) const;
+    size_t length() const { return n; }
+
+    friend std::ostream& operator<<(std::ostream& os, const CString& str);
+
+    virtual void Show() = 0;
+
+    static int Input(const char* filename, std::vector<CString*>& v, const std::vector<class CFabric*>& fabrics);
+    static void autotest();
+};
+
+bool CString::verbose = true;
+
+class CFabric {
+public:
+    virtual ~CFabric() { std::cout << "Fabrics destr" << std::endl; }
+    virtual CString* Create(const std::string& data) = 0;
+    virtual int GetType() const = 0;
+};
+
+class RoundFabric : public CFabric {
+public:
+    CString* Create(const std::string& data) override;
+    int GetType() const override { return 1; }
+};
+
+class SquareFabric : public CFabric {
+public:
+    CString* Create(const std::string& data) override;
+    int GetType() const override { return 2; }
+};
+
+class Round_Child : public CString {
+public:
+    using CString::CString;
+    ~Round_Child() override {}
+    void Show() override {
+        std::cout << "(";
+        if (s) std::cout << s;
+        std::cout << ")" << std::endl;
+    }
+    Round_Child operator+(const Round_Child& other) const;
+};
+
+class Square_Child : public CString {
+public:
+    using CString::CString;
+    ~Square_Child() override {}
+    void Show() override {
+        std::cout << "[";
+        if (s) std::cout << s;
+        std::cout << "]" << std::endl;
+    }
+    Square_Child operator+(const Square_Child& other) const;
+};
+
+CString* RoundFabric::Create(const std::string& data) {
+    Round_Child* obj = new Round_Child;
+    if (!data.empty()) *obj = data.c_str();
+    return obj;
+}
+
+CString* SquareFabric::Create(const std::string& data) {
+    Square_Child* obj = new Square_Child;
+    if (!data.empty()) *obj = data.c_str();
+    return obj;
+}
+
+CString::CString() : s(nullptr), n(0) {
+    if (verbose) std::cout << "Default constructor" << std::endl;
+}
+
+CString::CString(size_t size) : n(size) {
+    if (verbose) std::cout << "Constructor" << std::endl;
+    if (n > 0) { s = new char[n + 1]; s[n] = '\0'; }
+}
+
+CString::CString(const char* str) {
+    if (verbose) std::cout << "C-string Constructor" << std::endl;
+    if (str) { n = strlen(str); s = new char[n + 1]; strcpy(s, str); }
+    else { s = nullptr; n = 0; }
+}
+
+CString::CString(const CString& other) {
+    if (verbose) std::cout << "Copy constructor" << std::endl;
+    copyFrom(other);
+}
+
+CString::CString(CString&& other) : s(other.s), n(other.n) {
+    if (verbose) std::cout << "Using move constructor" << std::endl;
+    other.s = nullptr; other.n = 0;
+}
+
+CString::~CString() {
+    cleanup();
+}
+
+CString& CString::operator=(const CString& other) {
+    if (verbose) std::cout << "Copy assignment operator" << std::endl;
+    if (this != &other) { cleanup(); copyFrom(other); }
+    return *this;
+}
+
+CString& CString::operator=(CString&& other) {
+    if (verbose) std::cout << "Move assignment operator" << std::endl;
+    if (this != &other) { cleanup(); s = other.s; n = other.n; other.s = nullptr; other.n = 0; }
+    return *this;
+}
+
+CString& CString::operator=(const char* str) {
+    if (verbose) std::cout << "Assignment from C-string" << std::endl;
+    if (s != str) { cleanup(); if (str) { n = strlen(str); s = new char[n + 1]; strcpy(s, str); } }
+    return *this;
+}
+
+char& CString::operator[](size_t index) { return s[index]; }
+const char& CString::operator[](size_t index) const { return s[index]; }
+
+std::ostream& operator<<(std::ostream& os, const CString& str) {
+    if (str.s) os << str.s;
+    return os;
+}
+
+void CString::cleanup() { delete[] s; s = nullptr; n = 0; }
+
+void CString::copyFrom(const CString& other) {
+    if (other.s) { n = other.n; s = new char[n + 1]; strcpy(s, other.s); }
+    else { s = nullptr; n = 0; }
+}
+
+void CString::copyFrom(const char* str) {
+    if (str) { n = strlen(str); s = new char[n + 1]; strcpy(s, str); }
+    else { s = nullptr; n = 0; }
+}
+
+Round_Child Round_Child::operator+(const Round_Child& other) const {
+    if (verbose) std::cout << "Round_Child operator+" << std::endl;
+    Round_Child result(n + other.n);
+    if (n > 0) strcpy(result.s, s);
+    if (other.n > 0) strcpy(result.s + n, other.s);
+    return result;
+}
+
+Square_Child Square_Child::operator+(const Square_Child& other) const {
+    if (verbose) std::cout << "Square_Child operator+" << std::endl;
+    Square_Child result(n + other.n);
+    if (n > 0) strcpy(result.s, s);
+    if (other.n > 0) strcpy(result.s + n, other.s);
+    return result;
+}
+
+// Изменённый Input: читает "Type Filename Data" и записывает результат в файл
+int CString::Input(const char* filename, std::vector<CString*>& v, const std::vector<CFabric*>& fabrics) {
+    std::ifstream f(filename);
+    if (!f.is_open()) {
+        std::cerr << "Cannot open file: " << filename << std::endl;
+        return -1;
+    }
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty()) continue;
+        std::stringstream ss(line);
+        int type;
+        std::string out_filename;
+        std::string data;
+        ss >> type >> out_filename;
+        if (ss.peek() == ' ') ss.get();
+        std::getline(ss, data);
+
+        CString* obj = nullptr;
+        for (auto* fab : fabrics) {
+            if (fab->GetType() == type) {
+                obj = fab->Create(data);
+                break;
+            }
+        }
+        if (!obj) {
+            std::cerr << "Unknown type " << type << " in line: " << line << std::endl;
+            continue;
+        }
+
+        v.push_back(obj);
+
+        // Запись результата (строки в скобках) в указанный файл (добавление)
+        std::ofstream outfile(out_filename, std::ios::app);
+        if (type == 1)
+            outfile << "(" << data << ")\n";
+        else
+            outfile << "[" << data << "]\n";
+    }
+    return 0;
+}
+
+std::string random_string(size_t length) {
+    static const char charset[] =
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789";
+    const size_t max_index = sizeof(charset) - 1;
+    std::string result;
+    result.reserve(length);
+    for (size_t i = 0; i < length; ++i)
+        result += charset[rand() % max_index];
+    return result;
+}
+
+void create_random_strings(FILE* f) {
+    if (!f) return;
+    srand(static_cast<unsigned>(time(nullptr)));
+
+    // Пять предопределённых имён выходных файлов
+    const char* out_names[] = { "1_output.txt", "2_output.txt", "3_output.txt", "4_output.txt", "5_output.txt" };
+
+    for (int i = 0; i < 20; ++i) {
+        int type = (rand() % 2) + 1;
+        size_t str_len = rand() % 16 + 5;
+        std::string text = random_string(str_len);
+        int name_idx = rand() % 5;
+        fprintf(f, "%d %s %s\n", type, out_names[name_idx], text.c_str());
+    }
+}
+
+void CString::autotest() {
+    // Генерация входного файла с тройками "Type Filename Data"
+    FILE* f = fopen("autotest_input.txt", "w");
+    create_random_strings(f);
+    fclose(f);
+
+    std::vector<CString*> vect_inp;
+    std::vector<CFabric*> fabrics;
+    fabrics.push_back(new RoundFabric);
+    fabrics.push_back(new SquareFabric);
+
+    // Input сам запишет результаты в соответствующие файлы
+    Input("autotest_input.txt", vect_inp, fabrics);
+
+    // Очистка
+    for (auto* obj : vect_inp) delete obj;
+    for (auto* fab : fabrics) delete fab;
+
+    // ---------- Блок измерения производительности (OpenMP) ----------
+    std::cout << "\n========== PARALLEL PERFORMANCE TEST (OpenMP) ==========" << std::endl;
+    CString::verbose = false;
+
+    std::vector<Round_Child> strings;
+    strings.reserve(N);
+    for (int i = 0; i < N; ++i)
+        strings.emplace_back("Hello");
+
+    // --- Последовательное накопление (через 4 промежуточные строки) ---
+    auto start_seq = std::chrono::high_resolution_clock::now();
+    Round_Child sum_seq;
+    // Сначала формируем 4 части по N/4 строк
+    const int PART = N / THREADS;  // 12500
+    std::vector<Round_Child> parts_seq(THREADS);
+    for (int t = 0; t < THREADS; ++t) {
+        Round_Child acc;
+        for (int i = t * PART; i < (t + 1) * PART; ++i) {
+            acc = acc + strings[i];
+        }
+        parts_seq[t] = acc;
+    }
+    // Складываем 4 части
+    for (auto& p : parts_seq) {
+        sum_seq = sum_seq + p;
+    }
+    auto end_seq = std::chrono::high_resolution_clock::now();
+    auto seq_time = std::chrono::duration<double, std::milli>(end_seq - start_seq).count();
+
+    // --- Параллельное накопление (OpenMP) ---
+    auto start_par = std::chrono::high_resolution_clock::now();
+    std::vector<Round_Child> partial_sums(THREADS);
+
+#pragma omp parallel num_threads(THREADS)
+    {
+        int tid = omp_get_thread_num();
+        int begin = tid * PART;
+        int end = (tid == THREADS - 1) ? N : (tid + 1) * PART;
+        Round_Child local_sum;
+        for (int i = begin; i < end; ++i) {
+            local_sum = local_sum + strings[i];
+        }
+        partial_sums[tid] = std::move(local_sum);
+    }
+
+    Round_Child total_par;
+    for (auto& ps : partial_sums) {
+        total_par = total_par + ps;
+    }
+    auto end_par = std::chrono::high_resolution_clock::now();
+    auto par_time = std::chrono::duration<double, std::milli>(end_par - start_par).count();
+
+    std::cout << "Sequential result length: " << sum_seq.length() << std::endl;
+    std::cout << "Parallel   result length: " << total_par.length() << std::endl;
+    std::cout << "\nTime (ms):" << std::endl;
+    std::cout << "  Sequential: " << seq_time << " ms" << std::endl;
+    std::cout << "  Parallel:   " << par_time << " ms" << std::endl;
+    std::cout << "  Speedup:    " << (seq_time / par_time) << "x" << std::endl;
+
+    CString::verbose = true;
+    std::cout << "========== END PARALLEL TEST ==========" << std::endl;
+}
+
+int main() {
+    int for_test_input;
+    std::cout << "Input 1 for manual test, input 2 for autotest" << std::endl;
+    std::cin >> for_test_input;
+
+    if (for_test_input == 1) {
+        std::vector<CFabric*> fabrics;
+        fabrics.push_back(new RoundFabric);
+        fabrics.push_back(new SquareFabric);
+        std::vector<CString*> vect_inp;
+        CString::Input("manual_input.txt", vect_inp, fabrics);
+        // В новой версии Input сам записывает результаты в файлы,
+        // поэтому здесь только очистка памяти
+        for (size_t i = 0; i < vect_inp.size(); ++i) delete vect_inp[i];
+        for (size_t i = 0; i < fabrics.size(); ++i) delete fabrics[i];
+        std::cout << "Results written to 1_output.txt ... 5_output.txt" << std::endl;
+    }
+    else if (for_test_input == 2) {
+        CString::autotest();
+    }
+    return 0;
+}
