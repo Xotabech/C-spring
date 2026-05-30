@@ -1,0 +1,69 @@
+import sys
+from PIL import Image
+
+def is_row_black(img, y, w):
+    """Return True if all pixels in row y are black (RGB (0,0,0))."""
+    # Crop one row and check all pixels
+    row = img.crop((0, y, w, y + 1))
+    return all(p == (0, 0, 0) for p in row.getdata())
+
+def is_col_black(img, x, h):
+    """Return True if all pixels in column x are black."""
+    col = img.crop((x, 0, x + 1, h))
+    return all(p == (0, 0, 0) for p in col.getdata())
+
+def trim_black_borders(input_path, output_path):
+    # Open image and ensure RGB mode
+    img = Image.open(input_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    w, h = img.size
+
+    # Find top non-black row
+    top = None
+    for y in range(h):
+        if not is_row_black(img, y, w):
+            top = y
+            break
+
+    # If all rows are black, whole image is black – nothing to trim
+    if top is None:
+        img.save(output_path)
+        return
+
+    # Find bottom non-black row
+    bottom = None
+    for y in range(h - 1, -1, -1):
+        if not is_row_black(img, y, w):
+            bottom = y
+            break
+
+    # Find left non-black column
+    left = None
+    for x in range(w):
+        if not is_col_black(img, x, h):
+            left = x
+            break
+
+    # Find right non-black column
+    right = None
+    for x in range(w - 1, -1, -1):
+        if not is_col_black(img, x, h):
+            right = x
+            break
+
+    # Crop and save (crop expects left, top, right+1, bottom+1)
+    cropped = img.crop((left, top, right + 1, bottom + 1))
+    cropped.save(output_path)
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} InputFile OutputFile")
+        sys.exit(1)
+    try:
+        trim_black_borders(sys.argv[1], sys.argv[2])
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+-------------------------------------------------------------------------------------------------------------------------------------
