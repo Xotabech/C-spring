@@ -1,0 +1,163 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{indentfirst}
+\geometry{top=2cm,bottom=2cm,left=2.5cm,right=2cm}
+\usepackage{hyperref}
+
+% Настройка отступов в начале абзаца
+\setlength{\parindent}{1.25cm}
+
+\definecolor{codebg}{rgb}{0.95,0.95,0.95}
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    frame=single,
+    language=Python,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny,
+}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{0.3cm}
+{
+\normalsize Московский государственный университет\\им. М.В. Ломоносова\par}
+\vspace{0.5cm}
+{\small Механико-математический факультет\par}
+\vspace{0.2cm}
+{\small Кафедра гидродинамики\par}
+\vspace{4cm}
+{\large \textbf{Отчёт по задаче}\par}
+\vspace{0.2cm}
+{\Large \textbf{«Преобразование BMP-изображения в оттенки серого»}\par}
+\vspace{2.5cm}
+\begin{flushright}
+Выполнила:\\
+Студентка 2 курса, 224 группы\\
+Тарко Анна Михайловна
+\end{flushright}
+\vspace{0.5cm}
+\begin{flushright}
+Преподаватель:\\
+асс. каф. вычислительной математики\\
+Почеревин Роман Владимирович
+\end{flushright}
+\vfill
+\begin{center}
+{\small Москва, 2026}
+\end{center}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Постановка задачи}
+
+Программа разработана для преобразования цветного BMP-изображения в черно-белое (оттенки серого). Она принимает имена входного и выходного файлов в качестве аргументов командной строки, загружает изображение, преобразует каждый пиксель в серый с сохранением яркости и сохраняет результат в BMP-файл.
+
+Яркость пикселя определяется как сумма его цветовых компонент: $L = R + G + B$. Для серого пикселя все три компоненты равны.
+
+\section{Алгоритм работы}
+
+После проверки корректности входных данных программа загружает изображение с помощью библиотеки Pillow и конвертирует его в режим RGB (если необходимо). Затем для каждого пикселя извлекаются значения красной ($R$), зелёной ($G$) и синей ($B$) компонент.
+
+Вычисляется яркость пикселя как сумма компонент, после чего определяется значение серого цвета по формуле $g = \lfloor(R + G + B) / 3\rfloor$. Каждый пиксель заменяется на серый $(g, g, g)$. Полученное изображение сохраняется в BMP-файл с указанным именем.
+
+\section{Формула Эйлера}
+
+Комплексный анализ является важным разделом математики, находящим применение во многих областях, включая гидродинамику и теорию колебаний. Одной из красивейших и важнейших формул является формула Эйлера, связывающая показательную функцию с тригонометрическими функциями.
+
+\textbf{Формула Эйлера} записывается следующим образом:
+\begin{equation}
+e^{ix} = \cos x + i\sin x
+\end{equation}
+где:
+\begin{itemize}
+\item $e$ — основание натурального логарифма;
+\item $i$ — мнимая единица ($i^2 = -1$);
+\item $x$ — вещественное число;
+\item $\cos x$ и $\sin x$ — тригонометрические функции.
+\end{itemize}
+
+\textbf{Доказательство:}
+
+Рассмотрим разложения функций в ряды Тейлора:
+\begin{equation}
+e^x = 1 + x + \frac{x^2}{2!} + \frac{x^3}{3!} + \frac{x^4}{4!} + \ldots
+\end{equation}
+\begin{equation}
+\cos x = 1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \frac{x^6}{6!} + \ldots
+\end{equation}
+\begin{equation}
+\sin x = x - \frac{x^3}{3!} + \frac{x^5}{5!} - \frac{x^7}{7!} + \ldots
+\end{equation}
+
+Подставим $ix$ в разложение экспоненты:
+\begin{align}
+e^{ix} &= 1 + ix + \frac{(ix)^2}{2!} + \frac{(ix)^3}{3!} + \frac{(ix)^4}{4!} + \frac{(ix)^5}{5!} + \ldots \nonumber \\
+&= 1 + ix - \frac{x^2}{2!} - i\frac{x^3}{3!} + \frac{x^4}{4!} + i\frac{x^5}{5!} - \ldots
+\end{align}
+
+Сгруппируем вещественные и мнимые слагаемые:
+\begin{align}
+e^{ix} &= \left(1 - \frac{x^2}{2!} + \frac{x^4}{4!} - \ldots\right) + i\left(x - \frac{x^3}{3!} + \frac{x^5}{5!} - \ldots\right) \nonumber \\
+&= \cos x + i\sin x
+\end{align}
+
+Что и требовалось доказать.
+
+\textbf{Следствие (тождество Эйлера):} При $x = \pi$ получаем знаменитое равенство:
+\begin{equation}
+e^{i\pi} + 1 = 0
+\end{equation}
+которое связывает пять фундаментальных математических констант.
+
+\newpage
+
+\section{Пример работы программы}
+
+\begin{figure}[h]
+\centering
+\begin{minipage}[t]{0.45\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{input.jpg}
+    \caption{Исходное изображение}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.45\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output.jpg}
+    \caption{Результат преобразования в оттенки серого}
+\end{minipage}
+\end{figure}
+
+\textbf{Пример вызова программы:}
+\begin{verbatim}
+$ python3 prog.py input1.jpg output1.jpg
+Готово: output.bmp
+\end{verbatim}
+
+Программа корректно преобразует цветное изображение в черно-белое, сохраняя визуальную яркость всех областей исходного изображения.
+
+
+\textbf{Пример вызова программы:}
+\begin{verbatim}
+$ python3 prog.py input.bmp output.bmp
+Готово: output.bmp
+\end{verbatim}
+
+Программа корректно преобразует цветное изображение в черно-белое, сохраняя визуальную яркость всех областей исходного изображения.
+
+\end{document}
