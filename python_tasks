@@ -1,0 +1,294 @@
+#!/usr/bin/env python3
+import sys
+from PIL import Image
+
+def is_row_black(img, y, w):
+    """Return True if all pixels in row y are black (RGB (0,0,0))."""
+    # Crop one row and check all pixels
+    row = img.crop((0, y, w, y + 1))
+    return all(p == (0, 0, 0) for p in row.getdata())
+
+def is_col_black(img, x, h):
+    """Return True if all pixels in column x are black."""
+    col = img.crop((x, 0, x + 1, h))
+    return all(p == (0, 0, 0) for p in col.getdata())
+
+def trim_black_borders(input_path, output_path):
+    # Open image and ensure RGB mode
+    img = Image.open(input_path)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    w, h = img.size
+
+    # Find top non-black row
+    top = None
+    for y in range(h):
+        if not is_row_black(img, y, w):
+            top = y
+            break
+
+    # If all rows are black, whole image is black – nothing to trim
+    if top is None:
+        img.save(output_path)
+        return
+
+    # Find bottom non-black row
+    bottom = None
+    for y in range(h - 1, -1, -1):
+        if not is_row_black(img, y, w):
+            bottom = y
+            break
+
+    # Find left non-black column
+    left = None
+    for x in range(w):
+        if not is_col_black(img, x, h):
+            left = x
+            break
+
+    # Find right non-black column
+    right = None
+    for x in range(w - 1, -1, -1):
+        if not is_col_black(img, x, h):
+            right = x
+            break
+
+    # Crop and save (crop expects left, top, right+1, bottom+1)
+    cropped = img.crop((left, top, right + 1, bottom + 1))
+    cropped.save(output_path)
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} InputFile OutputFile")
+        sys.exit(1)
+    try:
+        trim_black_borders(sys.argv[1], sys.argv[2])
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+//-------------------------------------------------------------------------------------------------------------------------------------//
+from PIL import Image
+
+def draw_line(x0: int, y0: int, x1: int, y1: int, filename: str) -> None:
+    """
+    Рисует отрезок по алгоритму Брезенхэма и сохраняет в файл.
+    """
+    # Определяем границы холста с отступом
+    min_x = min(x0, x1)
+    max_x = max(x0, x1)
+    min_y = min(y0, y1)
+    max_y = max(y0, y1)
+    margin = 5
+    width = max_x - min_x + 2 * margin + 1
+    height = max_y - min_y + 2 * margin + 1
+
+    # Создаём чёрное изображение
+    img = Image.new('L', (width, height), 0)  # 'L' — оттенки серого, 0 = чёрный
+    pixels = img.load()
+
+    # Смещение координат для размещения на холсте
+    shift_x = -min_x + margin
+    shift_y = -min_y + margin
+
+    # Основной алгоритм Брезенхэма
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx - dy
+
+    x, y = x0, y0
+    while True:
+        pixels[x + shift_x, y + shift_y] = 255  # белый пиксель
+        if x == x1 and y == y1:
+            break
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x += sx
+        if e2 < dx:
+            err += dx
+            y += sy
+
+    img.save(filename)
+    print(f"Отрезок сохранён в {filename}")
+
+
+//------------------------------------------------------------------------------------------------------------//
+def draw_circle(xc: int, yc: int, r: int, filename: str) -> None:
+    """
+    Рисует окружность по алгоритму Брезенхэма (метод средней точки)
+    и сохраняет в файл.
+    """
+    # Границы холста: описываем квадрат вокруг окружности
+    min_x = xc - r
+    max_x = xc + r
+    min_y = yc - r
+    max_y = yc + r
+    margin = 5
+    width = max_x - min_x + 2 * margin + 1
+    height = max_y - min_y + 2 * margin + 1
+
+    img = Image.new('L', (width, height), 0)
+    pixels = img.load()
+
+    shift_x = -min_x + margin
+    shift_y = -min_y + margin
+
+    x = 0
+    y = r
+    d = 1 - r   # начальное значение управляющей переменной
+
+    # Вспомогательная функция для рисования 8 симметричных точек
+    def draw_symmetric(x, y):
+        for sx, sy in [(x, y), (-x, y), (x, -y), (-x, -y),
+                       (y, x), (-y, x), (y, -x), (-y, -x)]:
+            # Проверяем границы холста (на всякий случай)
+            px = xc + sx + shift_x
+            py = yc + sy + shift_y
+            if 0 <= px < width and 0 <= py < height:
+                pixels[px, py] = 255
+
+    draw_symmetric(x, y)
+
+    while x < y:
+        x += 1
+        if d < 0:
+            d += 2 * x + 1   # соответствует 2*(x_prev)+3
+        else:
+            y -= 1
+            d += 2 * (x - y) + 1   # соответствует 2*(x_prev - y_prev) + 5
+        draw_symmetric(x, y)
+
+    img.save(filename)
+    print(f"Окружность сохранена в {filename}")
+
+
+
+//-------------------------------------------------------------------------------------------------------------//
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <algorithm> // для std::min, std::max
+
+// Сохраняет буфер пикселей (одноканальный, 0=чёрный, 255=белый) в бинарный PPM
+void savePPM(const std::string& filename, int width, int height,
+             const std::vector<unsigned char>& pixels) {
+    std::ofstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Ошибка открытия файла " << filename << "\n";
+        return;
+    }
+    file << "P6\n" << width << " " << height << "\n255\n";
+    // PPM требует RGB, поэтому дублируем значение серого на все три компонента
+    for (unsigned char gray : pixels) {
+        file.write(reinterpret_cast<const char*>(&gray), 1);
+        file.write(reinterpret_cast<const char*>(&gray), 1);
+        file.write(reinterpret_cast<const char*>(&gray), 1);
+    }
+}
+
+// Алгоритм Брезенхема для отрезка
+void drawLine(int x0, int y0, int x1, int y1, const std::string& filename) {
+    // Границы холста с отступом
+    int minX = std::min(x0, x1);
+    int maxX = std::max(x0, x1);
+    int minY = std::min(y0, y1);
+    int maxY = std::max(y0, y1);
+    const int margin = 5;
+    int width = maxX - minX + 2 * margin + 1;
+    int height = maxY - minY + 2 * margin + 1;
+
+    // Буфер пикселей (чёрный фон)
+    std::vector<unsigned char> pixels(width * height, 0);
+
+    int shiftX = -minX + margin;
+    int shiftY = -minY + margin;
+
+    int dx = std::abs(x1 - x0);
+    int dy = -std::abs(y1 - y0); // обратите внимание: здесь мы берём dy отрицательным
+    int sx = x0 < x1 ? 1 : -1;
+    int sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy; // dx + dy (dy уже отрицательное) = dx - |dy|
+
+    int x = x0, y = y0;
+    while (true) {
+        int px = x + shiftX;
+        int py = y + shiftY;
+        if (px >= 0 && px < width && py >= 0 && py < height)
+            pixels[py * width + px] = 255;
+
+        if (x == x1 && y == y1) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) { // dy отрицательное
+            err += dy;
+            x += sx;
+        }
+        if (e2 <= dx) {
+            err += dx;
+            y += sy;
+        }
+    }
+
+    savePPM(filename, width, height, pixels);
+    std::cout << "Отрезок сохранён в " << filename << std::endl;
+}
+
+// Алгоритм Брезенхема для окружности
+void drawCircle(int xc, int yc, int r, const std::string& filename) {
+    int minX = xc - r;
+    int maxX = xc + r;
+    int minY = yc - r;
+    int maxY = yc + r;
+    const int margin = 5;
+    int width = maxX - minX + 2 * margin + 1;
+    int height = maxY - minY + 2 * margin + 1;
+
+    std::vector<unsigned char> pixels(width * height, 0);
+
+    int shiftX = -minX + margin;
+    int shiftY = -minY + margin;
+
+    int x = 0, y = r;
+    int d = 1 - r;
+
+    // Вспомогательная лямбда для прорисовки 8 симметричных точек
+    auto plot = [&](int dx, int dy) {
+        int coords[8][2] = {
+            {dx, dy}, {-dx, dy}, {dx, -dy}, {-dx, -dy},
+            {dy, dx}, {-dy, dx}, {dy, -dx}, {-dy, -dx}
+        };
+        for (auto& c : coords) {
+            int px = xc + c[0] + shiftX;
+            int py = yc + c[1] + shiftY;
+            if (px >= 0 && px < width && py >= 0 && py < height)
+                pixels[py * width + px] = 255;
+        }
+    };
+
+    plot(x, y);
+
+    while (x < y) {
+        x++;
+        if (d < 0) {
+            d += 2 * x + 1;
+        } else {
+            y--;
+            d += 2 * (x - y) + 1;
+        }
+        plot(x, y);
+    }
+
+    savePPM(filename, width, height, pixels);
+    std::cout << "Окружность сохранена в " << filename << std::endl;
+}
+
+// Пример использования
+int main() {
+    drawLine(5, 5, 100, 60, "line.ppm");
+    drawCircle(150, 150, 80, "circle.ppm");
+    return 0;
+}
