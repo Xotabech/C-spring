@@ -352,3 +352,404 @@ def main():
 
 if __name__ == "__main__":
     main()
+//----------------------------------------------------------------------------------------------//
+import sys
+import math
+
+# ============================================================
+# Алгоритмы Брезенхема (целочисленные)
+# ============================================================
+def draw_line(pixels, width, height, x0, y0, x1, y1):
+    dx = abs(x1 - x0)
+    dy = -abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx + dy
+    x, y = x0, y0
+    while True:
+        if 0 <= x < width and 0 <= y < height:
+            idx = (y * width + x) * 3
+            pixels[idx] = pixels[idx+1] = pixels[idx+2] = 255
+        if x == x1 and y == y1:
+            break
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x += sx
+        if e2 <= dx:
+            err += dx
+            y += sy
+
+def draw_circle(pixels, width, height, cx, cy, r):
+    """Midpoint circle algorithm (Брезенхем)."""
+    x = 0
+    y = r
+    d = 1 - r
+    while x <= y:
+        for dx, dy in [(x, y), (y, x), (-x, y), (-y, x),
+                       (x, -y), (y, -x), (-x, -y), (-y, -x)]:
+            px = cx + dx
+            py = cy + dy
+            if 0 <= px < width and 0 <= py < height:
+                idx = (py * width + px) * 3
+                pixels[idx] = pixels[idx+1] = pixels[idx+2] = 255
+        if d < 0:
+            d += 2 * x + 3
+        else:
+            d += 2 * (x - y) + 5
+            y -= 1
+        x += 1
+
+def draw_ellipse(pixels, width, height, cx, cy, a, b):
+    """Midpoint ellipse algorithm (Брезенхем)."""
+    a2 = a * a
+    b2 = b * b
+    # Область 1
+    x = 0
+    y = b
+    d1 = b2 - a2 * b + a2 / 4
+    while a2 * (y - 0.5) > b2 * (x + 1):
+        for dx, dy in [(x, y), (-x, y), (x, -y), (-x, -y)]:
+            px = cx + dx
+            py = cy + dy
+            if 0 <= px < width and 0 <= py < height:
+                idx = (py * width + px) * 3
+                pixels[idx] = pixels[idx+1] = pixels[idx+2] = 255
+        if d1 < 0:
+            d1 += b2 * (2 * x + 3)
+        else:
+            d1 += b2 * (2 * x + 3) + a2 * (-2 * y + 2)
+            y -= 1
+        x += 1
+    # Область 2
+    d2 = b2 * (x + 0.5) * (x + 0.5) + a2 * (y - 1) * (y - 1) - a2 * b2
+    while y >= 0:
+        for dx, dy in [(x, y), (-x, y), (x, -y), (-x, -y)]:
+            px = cx + dx
+            py = cy + dy
+            if 0 <= px < width and 0 <= py < height:
+                idx = (py * width + px) * 3
+                pixels[idx] = pixels[idx+1] = pixels[idx+2] = 255
+        if d2 > 0:
+            d2 += a2 * (-2 * y + 3)
+        else:
+            d2 += b2 * (2 * x + 2) + a2 * (-2 * y + 3)
+            x += 1
+        y -= 1
+
+def save_ppm(filename, width, height, pixels):
+    with open(filename, 'wb') as f:
+        f.write(f'P6\n{width} {height}\n255\n'.encode())
+        f.write(bytes(pixels))
+
+# ============================================================
+# Вспомогательные функции
+# ============================================================
+def det2(a, b, c, d):
+    return a * d - b * c
+
+def det3(m):
+    return (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+            m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+            m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+
+def solve2(a, b, c, d, e, f):
+    det = a * d - b * c
+    if abs(det) < 1e-12:
+        return None
+    return ((e * d - b * f) / det, (a * f - e * c) / det)
+
+# ============================================================
+# Классификация (if/elif)
+# ============================================================
+class Conic:
+    def __init__(self, A, b_half, C, d_half, e_half, F):
+        self.A = A
+        self.B = 2 * b_half
+        self.C = C
+        self.D = 2 * d_half
+        self.E = 2 * e_half
+        self.F = F
+
+        M = [[self.A, self.B, self.D],
+             [self.B, self.C, self.E],
+             [self.D, self.E, self.F]]
+        self.I1 = self.A + self.C
+        self.I2 = det2(self.A, self.B, self.B, self.C)
+        self.I3 = det3(M)
+        self.K1 = det2(self.A, self.D, self.D, self.F) + det2(self.C, self.E, self.E, self.F)
+
+        self.type = None
+        self.params = {}
+        self._classify()
+
+    def _classify(self):
+        I1, I2, I3, K1 = self.I1, self.I2, self.I3, self.K1
+
+        if I2 > 0:
+            if I3 != 0:
+                if I3 * I1 < 0:
+                    self.type = 'ellipse'
+                else:
+                    self.type = 'imaginary_ellipse'
+            else:
+                self.type = 'imaginary_intersecting_lines'
+        elif I2 < 0:
+            if I3 != 0:
+                self.type = 'hyperbola'
+            else:
+                self.type = 'intersecting_lines'
+        else:  # I2 == 0
+            if I3 != 0:
+                self.type = 'parabola'
+            else:
+                if K1 < 0:
+                    self.type = 'parallel_lines'
+                elif K1 > 0:
+                    self.type = 'imaginary_parallel_lines'
+                else:
+                    self.type = 'coincident_lines'
+
+        self._compute_params()
+
+    def _compute_params(self):
+        A, B, C, D, E, F = self.A, self.B, self.C, self.D, self.E, self.F
+        if abs(A - C) < 1e-12:
+            self.phi = math.pi / 4
+        else:
+            self.phi = 0.5 * math.atan2(2 * B, A - C)
+
+        cos_p = math.cos(self.phi)
+        sin_p = math.sin(self.phi)
+        A1 = A * cos_p**2 + 2 * B * sin_p * cos_p + C * sin_p**2
+        C1 = A * sin_p**2 - 2 * B * sin_p * cos_p + C * cos_p**2
+        D1 = D * cos_p + E * sin_p
+        E1 = -D * sin_p + E * cos_p
+        self.A1 = A1
+        self.C1 = C1
+        self.D1 = D1
+        self.E1 = E1
+        self.cos_p = cos_p
+        self.sin_p = sin_p
+
+        if self.type in ('ellipse', 'imaginary_ellipse', 'hyperbola', 'imaginary_intersecting_lines', 'intersecting_lines'):
+            center = solve2(A, B, B, C, -D, -E)
+            self.center = center if center else (0, 0)
+            x0, y0 = self.center
+            F1 = D * x0 + E * y0 + F
+            self.F1 = F1
+            if self.type in ('ellipse', 'imaginary_ellipse'):
+                if abs(A1) > 1e-12 and abs(C1) > 1e-12:
+                    a2 = -F1 / A1
+                    b2 = -F1 / C1
+                    self.a = math.sqrt(a2) if a2 > 0 else 0
+                    self.b = math.sqrt(b2) if b2 > 0 else 0
+                else:
+                    self.a = self.b = 0
+            elif self.type == 'hyperbola':
+                if A1 > 0 and C1 < 0:
+                    a2 = -F1 / A1
+                    b2 = F1 / C1
+                else:
+                    a2 = -F1 / C1
+                    b2 = F1 / A1
+                self.a = math.sqrt(a2) if a2 > 0 else 0
+                self.b = math.sqrt(b2) if b2 > 0 else 0
+            elif self.type == 'intersecting_lines':
+                k = math.sqrt(-self.C1 / self.A1) if abs(self.A1) > 1e-12 else 0
+                self.params['slopes'] = (k, -k)
+            elif self.type == 'imaginary_intersecting_lines':
+                self.params['point'] = (0, 0)
+
+        elif self.type == 'parabola':
+            if abs(self.C1) < 1e-12 and abs(self.A1) > 1e-12:
+                x0_prime = -self.D1 / self.A1
+                new_F = self.F - self.D1**2 / self.A1
+                if abs(self.E1) > 1e-12:
+                    y0_prime = -new_F / (2 * self.E1)
+                    self.p = -self.E1 / self.A1
+                else:
+                    y0_prime = 0
+                    self.p = 0
+                self.vertex_prime = (x0_prime, y0_prime)
+                self.axis = 'x'
+            elif abs(self.A1) < 1e-12 and abs(self.C1) > 1e-12:
+                y0_prime = -self.E1 / self.C1
+                new_F = self.F - self.E1**2 / self.C1
+                if abs(self.D1) > 1e-12:
+                    x0_prime = -new_F / (2 * self.D1)
+                    self.p = -self.D1 / self.C1
+                else:
+                    x0_prime = 0
+                    self.p = 0
+                self.vertex_prime = (x0_prime, y0_prime)
+                self.axis = 'y'
+            else:
+                self.p = 0
+
+        elif self.type in ('parallel_lines', 'imaginary_parallel_lines', 'coincident_lines'):
+            if abs(self.A1) > 1e-12:
+                disc = self.D1**2 - self.A1 * self.F
+                if disc >= 0:
+                    x1 = (-self.D1 + math.sqrt(disc)) / self.A1
+                    x2 = (-self.D1 - math.sqrt(disc)) / self.A1
+                    self.params['lines'] = [('vertical', x1), ('vertical', x2)]
+                else:
+                    self.params['lines'] = []
+            elif abs(self.C1) > 1e-12:
+                disc = self.E1**2 - self.C1 * self.F
+                if disc >= 0:
+                    y1 = (-self.E1 + math.sqrt(disc)) / self.C1
+                    y2 = (-self.E1 - math.sqrt(disc)) / self.C1
+                    self.params['lines'] = [('horizontal', y1), ('horizontal', y2)]
+                else:
+                    self.params['lines'] = []
+            else:
+                self.params['lines'] = [('general', self.D1, self.E1, self.F)]
+
+    def get_canonical_points(self, num_points=400):
+        """Возвращает точки в канонической системе (до поворота и сдвига)."""
+        pts = []
+        if self.type in ('ellipse', 'imaginary_ellipse'):
+            if self.a > 0 and self.b > 0:
+                for i in range(num_points):
+                    t = 2 * math.pi * i / num_points
+                    pts.append((self.a * math.cos(t), self.b * math.sin(t)))
+        elif self.type == 'hyperbola':
+            if self.a > 0 and self.b > 0:
+                t_max = 4.0
+                dt = 2 * t_max / num_points
+                for i in range(num_points):
+                    t = -t_max + i * dt
+                    pts.append((self.a * math.cosh(t), self.b * math.sinh(t)))
+                for i in range(num_points):
+                    t = -t_max + i * dt
+                    pts.append((-self.a * math.cosh(t), self.b * math.sinh(t)))
+        elif self.type == 'parabola':
+            limit = abs(self.p) * 4 + 20
+            step = 2 * limit / num_points
+            if self.axis == 'x':
+                for i in range(num_points):
+                    Y = -limit + i * step
+                    X = Y * Y / (2 * self.p) if self.p != 0 else 0
+                    pts.append((X + self.vertex_prime[0], Y + self.vertex_prime[1]))
+            else:
+                for i in range(num_points):
+                    X = -limit + i * step
+                    Y = X * X / (2 * self.p) if self.p != 0 else 0
+                    pts.append((X + self.vertex_prime[0], Y + self.vertex_prime[1]))
+        elif self.type == 'intersecting_lines':
+            k = self.params['slopes'][0]
+            limit = 200
+            pts.append((-limit, -k*limit))
+            pts.append((limit, k*limit))
+            pts.append((None, None))
+            pts.append((-limit, k*limit))
+            pts.append((limit, -k*limit))
+        elif self.type == 'imaginary_intersecting_lines':
+            pts.append((0, 0))
+        elif self.type in ('parallel_lines', 'imaginary_parallel_lines', 'coincident_lines'):
+            limit = 200
+            for line in self.params.get('lines', []):
+                if line[0] == 'vertical':
+                    x_val = line[1]
+                    pts.append((x_val, -limit))
+                    pts.append((x_val, limit))
+                    pts.append((None, None))
+                elif line[0] == 'horizontal':
+                    y_val = line[1]
+                    pts.append((-limit, y_val))
+                    pts.append((limit, y_val))
+                    pts.append((None, None))
+                elif line[0] == 'general':
+                    a, b, c = line[1], line[2], line[3]
+                    if abs(b) > 1e-12:
+                        y1 = -limit; x1 = (-c - b*y1)/a
+                        y2 = limit; x2 = (-c - b*y2)/a
+                    else:
+                        x1 = -limit; y1 = (-c - a*x1)/b
+                        x2 = limit; y2 = (-c - a*x2)/b
+                    pts.append((x1, y1))
+                    pts.append((x2, y2))
+                    pts.append((None, None))
+        return pts
+
+# ============================================================
+# Главная программа
+# ============================================================
+def main():
+    print("Введите 6 чисел через пробел: A, b, C, d, e, F")
+    print("(b, d, e – половинные коэффициенты, будут удвоены)")
+    try:
+        line = sys.stdin.readline()
+        parts = line.strip().split()
+        if len(parts) != 6:
+            raise ValueError
+        A, bh, C, dh, eh, F = map(float, parts)
+    except:
+        print("Ошибка ввода.")
+        return
+
+    conic = Conic(A, bh, C, dh, eh, F)
+    print(f"Тип кривой: {conic.type}")
+
+    # Вывод параметров сдвига и поворота
+    if hasattr(conic, 'center'):
+        cx, cy = conic.center
+    else:
+        cx, cy = 0, 0
+    angle_deg = math.degrees(conic.phi) % 360
+    print(f"Чтобы получить исходную кривую, нужно:")
+    print(f"  - сдвинуть каноническую кривую на вектор ({cx:.3f}, {cy:.3f})")
+    print(f"  - повернуть против часовой стрелки на {angle_deg:.2f}°")
+
+    # Получаем канонические точки
+    points = conic.get_canonical_points(num_points=400)
+
+    all_x = [p[0] for p in points if p[0] is not None]
+    all_y = [p[1] for p in points if p[1] is not None]
+    if not all_x:
+        print("Нечего рисовать.")
+        return
+
+    margin = 20
+    min_x = int(min(all_x)) - margin
+    max_x = int(max(all_x)) + margin
+    min_y = int(min(all_y)) - margin
+    max_y = int(max(all_y)) + margin
+    width = max_x - min_x + 1
+    height = max_y - min_y + 1
+
+    # Центр холста для начала координат канонической системы
+    img_cx = -min_x
+    img_cy = -min_y
+
+    pixels = bytearray(width * height * 3)
+
+    # Для эллипса и окружности – родные алгоритмы
+    if conic.type == 'ellipse' and conic.a > 0 and conic.b > 0:
+        if abs(conic.a - conic.b) < 1e-6:
+            r = int(round(conic.a))
+            draw_circle(pixels, width, height, img_cx, img_cy, r)
+        else:
+            a = int(round(conic.a))
+            b = int(round(conic.b))
+            draw_ellipse(pixels, width, height, img_cx, img_cy, a, b)
+    else:
+        # Для остальных – соединение отрезками
+        prev = None
+        for p in points:
+            if p[0] is None:
+                prev = None
+                continue
+            x = int(round(p[0])) + img_cx
+            y = int(round(p[1])) + img_cy
+            if prev is not None:
+                draw_line(pixels, width, height, prev[0], prev[1], x, y)
+            prev = (x, y)
+
+    save_ppm("conic_canonical.ppm", width, height, pixels)
+    print("Изображение (канонический вид) сохранено в conic_canonical.ppm")
+
+if __name__ == "__main__":
+    main()
