@@ -1,0 +1,468 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>  // для std::shuffle, std::iota
+#include <random>     // для std::mt19937
+
+// Абстрактный класс перестановок
+class Permutations {
+protected:
+    std::vector<int> P;
+public:
+    Permutations() : P() {
+        std::cout << "Default constructor" << std::endl;
+    }
+    Permutations(size_t size) {
+        std::cout << "Size constructor" << std::endl;
+        if (size > 0) {
+            for (size_t i = 1; i <= size; ++i) P.push_back(i);
+        }
+    }
+    // Конструктор, принимающий готовый вектор
+    Permutations(const std::vector<int>& data) : P(data) {
+        std::cout << "Vector constructor" << std::endl;
+    }
+    virtual ~Permutations() {}
+
+    virtual void Show() = 0;
+
+    static int Input(const char* filename,
+                     std::vector<Permutations*>& v,
+                     const std::vector<class CFabric*>& fabrics);
+};
+
+// Фабрика
+class CFabric {
+public:
+    virtual ~CFabric() { std::cout << "Fabric destructor" << std::endl; }
+    virtual Permutations* Create(const std::vector<int>& data) = 0;
+    virtual int GetType() const = 0;   // 0 - чётные, 1 - нечётные
+};
+
+class OddFabric : public CFabric {
+public:
+    Permutations* Create(const std::vector<int>& data) override;
+    int GetType() const override { return 1; }
+};
+
+class EvenFabric : public CFabric {
+public:
+    Permutations* Create(const std::vector<int>& data) override;
+    int GetType() const override { return 0; }
+};
+
+// Нечётная перестановка
+class Odd : public Permutations {
+public:
+    using Permutations::Permutations;   // наследуем все конструкторы
+    ~Odd() override {}
+    void Show() override {
+        std::cout << "Odd: [";
+        for (size_t i = 0; i < P.size(); ++i) {
+            std::cout << P[i] << " ";
+        }
+        std::cout << "]" << std::endl;
+    }
+};
+
+// Чётная перестановка
+class Even : public Permutations {
+public:
+    using Permutations::Permutations;
+    ~Even() override {}
+    void Show() override {
+        std::cout << "Even: [";
+        for (size_t i = 0; i < P.size(); ++i) {
+            std::cout << P[i] << " ";
+        }
+        std::cout << "]" << std::endl;
+    }
+};
+
+// Реализация фабрик
+Permutations* OddFabric::Create(const std::vector<int>& data) {
+    return new Odd(data);
+}
+
+Permutations* EvenFabric::Create(const std::vector<int>& data) {
+    return new Even(data);
+}
+
+// Чтение файла, подсчёт инверсий и создание объектов
+int Permutations::Input(const char* filename,
+                        std::vector<Permutations*>& v,
+                        const std::vector<CFabric*>& fabrics) {
+    std::ifstream f(filename);
+    if (!f.is_open()) {
+        std::cerr << "Cannot open file " << filename << std::endl;
+        return 1;
+    }
+
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty()) continue;
+        std::stringstream ss(line);
+        std::vector<int> data;
+        int number;
+        while (ss >> number) {
+            data.push_back(number);
+        }
+        if (data.empty()) continue;
+
+        // Подсчёт инверсий непосредственно здесь
+        int inv = 0;
+        for (size_t i = 0; i < data.size(); ++i)
+            for (size_t j = i + 1; j < data.size(); ++j)
+                if (data[i] > data[j]) ++inv;
+
+        int type = inv % 2;   // 0 – чётная, 1 – нечётная
+
+        Permutations* obj = nullptr;
+        for (auto* fab : fabrics) {
+            if (fab->GetType() == type) {
+                obj = fab->Create(data);
+                break;
+            }
+        }
+        if (obj) v.push_back(obj);
+        else std::cerr << "Unknown type " << type << " in line: " << line << std::endl;
+    }
+    return 0;
+}
+
+// Генерация случайных перестановок в файл
+void GenerateRandomPermutations(const char* filename, int count, int maxLength) {
+    std::ofstream f(filename);
+    if (!f.is_open()) {
+        std::cerr << "Cannot create file " << filename << std::endl;
+        return;
+    }
+
+    std::mt19937 rng(std::time(nullptr));
+    for (int k = 0; k < count; ++k) {
+        int n = std::uniform_int_distribution<int>(2, maxLength)(rng);
+        std::vector<int> perm(n);
+        std::iota(perm.begin(), perm.end(), 1);
+        std::shuffle(perm.begin(), perm.end(), rng);
+        for (size_t i = 0; i < perm.size(); ++i) {
+            f << perm[i] << (i + 1 < perm.size() ? " " : "");
+        }
+        f << "\n";
+    }
+    f.close();
+}
+
+int main() {
+    const char* fileName = "input.txt";
+
+    // Генерируем файл с 10 случайными перестановками длиной от 2 до 6
+    GenerateRandomPermutations(fileName, 10, 6);
+
+    std::vector<Permutations*> objects;
+    std::vector<CFabric*> fabrics;
+    fabrics.push_back(new EvenFabric);
+    fabrics.push_back(new OddFabric);
+
+    Permutations::Input(fileName, objects, fabrics);
+
+    for (auto* obj : objects) obj->Show();
+
+    // Очистка памяти
+    for (auto* obj : objects) delete obj;
+    for (auto* fab : fabrics) delete fab;
+
+    return 0;
+}
+
+
+//-----------------------------------------------------------------------------------------------------------------//
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <random>
+#include <chrono>
+#include <memory>
+#include <string>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+// ----------------------------------------------------------------------
+// Forward declarations
+// ----------------------------------------------------------------------
+class CMatrix;
+class CFabric;
+
+// ----------------------------------------------------------------------
+// Abstract factory
+// ----------------------------------------------------------------------
+class CFabric {
+public:
+    virtual CMatrix* CreateMatrix(int rows, int cols) const = 0;
+    virtual ~CFabric() = default;
+};
+
+// ----------------------------------------------------------------------
+// Abstract matrix class
+// ----------------------------------------------------------------------
+class CMatrix {
+public:
+    virtual ~CMatrix() = default;
+    virtual CMatrix* Multiply(const CMatrix& other) const = 0;
+
+    static int Input1(const char* filename, std::vector<CMatrix*>& v,
+                      const std::vector<CFabric*>& fabrics);
+    static int Input2(const char* filename, std::vector<CMatrix*>& v,
+                      const std::vector<CFabric*>& fabrics);
+
+    int GetRows() const { return m_; }
+    int GetCols() const { return n_; }
+
+    // Public access to raw data for fast multiplication
+    const std::vector<int>& GetData() const { return data_; }
+    std::vector<int>& GetData() { return data_; }
+
+protected:
+    CMatrix(int rows, int cols) : m_(rows), n_(cols), data_(rows * cols, 0) {}
+
+    void SetElement(int i, int j, int value) { data_[i * n_ + j] = value; }
+    int  GetElement(int i, int j) const { return data_[i * n_ + j]; }
+
+    int m_, n_;
+    std::vector<int> data_;
+};
+
+// ----------------------------------------------------------------------
+// Serial multiplication (i-k-j order, raw pointers)
+// ----------------------------------------------------------------------
+class CMatrixSerial : public CMatrix {
+public:
+    CMatrixSerial(int rows, int cols) : CMatrix(rows, cols) {}
+
+    CMatrix* Multiply(const CMatrix& other) const override {
+        if (n_ != other.GetRows())
+            throw std::runtime_error("Incompatible dimensions");
+
+        CMatrixSerial* result = new CMatrixSerial(m_, other.GetCols());
+        const int M = m_, K = n_, N = other.GetCols();
+        const int* A = data_.data();
+        const int* B = other.GetData().data();
+        int* C = result->GetData().data();
+
+        std::vector<int> row_buffer(N, 0);
+
+        for (int i = 0; i < M; ++i) {
+            std::fill(row_buffer.begin(), row_buffer.end(), 0);
+            for (int k = 0; k < K; ++k) {
+                int aik = A[i * K + k];
+                const int* B_row = B + k * N;
+                for (int j = 0; j < N; ++j) {
+                    row_buffer[j] += aik * B_row[j];
+                }
+            }
+            std::copy(row_buffer.begin(), row_buffer.end(), C + i * N);
+        }
+        return result;
+    }
+};
+
+// ----------------------------------------------------------------------
+// Parallel multiplication (OpenMP, per-thread row buffer, i-k-j)
+// ----------------------------------------------------------------------
+class CMatrixParallel : public CMatrix {
+public:
+    CMatrixParallel(int rows, int cols) : CMatrix(rows, cols) {}
+
+    CMatrix* Multiply(const CMatrix& other) const override {
+        if (n_ != other.GetRows())
+            throw std::runtime_error("Incompatible dimensions");
+
+        CMatrixParallel* result = new CMatrixParallel(m_, other.GetCols());
+        const int M = m_, K = n_, N = other.GetCols();
+        const int* A = data_.data();
+        const int* B = other.GetData().data();
+        int* C = result->GetData().data();
+
+        #pragma omp parallel
+        {
+            // Каждый поток выделяет буфер только один раз
+            std::vector<int> row_buffer(N, 0);
+
+            #pragma omp for schedule(static)
+            for (int i = 0; i < M; ++i) {
+                std::fill(row_buffer.begin(), row_buffer.end(), 0);
+                for (int k = 0; k < K; ++k) {
+                    int aik = A[i * K + k];
+                    const int* B_row = B + k * N;
+                    for (int j = 0; j < N; ++j) {
+                        row_buffer[j] += aik * B_row[j];
+                    }
+                }
+                std::copy(row_buffer.begin(), row_buffer.end(), C + i * N);
+            }
+        }
+        return result;
+    }
+};
+
+// ----------------------------------------------------------------------
+// Factories
+// ----------------------------------------------------------------------
+class CFabricSerial : public CFabric {
+public:
+    CMatrix* CreateMatrix(int rows, int cols) const override {
+        return new CMatrixSerial(rows, cols);
+    }
+};
+
+class CFabricParallel : public CFabric {
+public:
+    CMatrix* CreateMatrix(int rows, int cols) const override {
+        return new CMatrixParallel(rows, cols);
+    }
+};
+
+// ----------------------------------------------------------------------
+// Static input methods (unchanged)
+// ----------------------------------------------------------------------
+int CMatrix::Input1(const char* filename, std::vector<CMatrix*>& v,
+                    const std::vector<CFabric*>& fabrics) {
+    if (fabrics.empty()) return -1;
+    std::ifstream ifs(filename);
+    if (!ifs) return -1;
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(ifs, line))
+        if (!line.empty()) lines.push_back(line);
+    if (lines.empty()) return -1;
+
+    std::istringstream iss0(lines[0]);
+    int cols = 0, val;
+    while (iss0 >> val) ++cols;
+    if (cols == 0) return -1;
+    int rows = (int)lines.size();
+
+    CMatrix* mat = fabrics[0]->CreateMatrix(rows, cols);
+    if (!mat) return -1;
+    for (int i = 0; i < rows; ++i) {
+        std::istringstream iss(lines[i]);
+        for (int j = 0; j < cols; ++j) {
+            if (!(iss >> val)) return -1;
+            mat->SetElement(i, j, val);
+        }
+    }
+    v.push_back(mat);
+    return 0;
+}
+
+int CMatrix::Input2(const char* filename, std::vector<CMatrix*>& v,
+                    const std::vector<CFabric*>& fabrics) {
+    if (fabrics.size() < 2) return -1;
+    std::ifstream ifs(filename);
+    if (!ifs) return -1;
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(ifs, line))
+        if (!line.empty()) lines.push_back(line);
+    if (lines.empty()) return -1;
+
+    std::istringstream iss0(lines[0]);
+    int cols = 0, val;
+    while (iss0 >> val) ++cols;
+    if (cols == 0) return -1;
+    int rows = (int)lines.size();
+
+    CMatrix* mat = fabrics[1]->CreateMatrix(rows, cols);
+    if (!mat) return -1;
+    for (int i = 0; i < rows; ++i) {
+        std::istringstream iss(lines[i]);
+        for (int j = 0; j < cols; ++j) {
+            if (!(iss >> val)) return -1;
+            mat->SetElement(i, j, val);
+        }
+    }
+    v.push_back(mat);
+    return 0;
+}
+
+// ----------------------------------------------------------------------
+// Generate matrix file (m rows, n integers each)
+// ----------------------------------------------------------------------
+void GenerateMatrixFile(const char* filename, int m, int n) {
+    std::ofstream ofs(filename);
+    if (!ofs) {
+        std::cerr << "Cannot open " << filename << " for writing\n";
+        return;
+    }
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(0, 200);
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            ofs << dist(gen);
+            if (j < n - 1) ofs << " ";
+        }
+        ofs << "\n";
+    }
+}
+
+// ----------------------------------------------------------------------
+// main
+// ----------------------------------------------------------------------
+int main() {
+    int m, n;
+    std::cout << "Enter m and n: ";
+    std::cin >> m >> n;
+    if (m <= 0 || n <= 0) return 1;
+
+    GenerateMatrixFile("input1.txt", m, n);
+    GenerateMatrixFile("input2.txt", n, m);
+    GenerateMatrixFile("input3.txt", m, n);
+    GenerateMatrixFile("input4.txt", n, m);
+
+    CFabricSerial fSer;
+    CFabricParallel fPar;
+    std::vector<CFabric*> fabrics = { &fSer, &fPar };
+    std::vector<CMatrix*> mSerial, mParallel;
+
+    if (CMatrix::Input1("input1.txt", mSerial, fabrics) ||
+        CMatrix::Input1("input2.txt", mSerial, fabrics) ||
+        CMatrix::Input2("input3.txt", mParallel, fabrics) ||
+        CMatrix::Input2("input4.txt", mParallel, fabrics)) {
+        std::cerr << "Read error\n";
+        return 1;
+    }
+
+#ifdef _OPENMP
+    std::cout << "OpenMP threads: " << omp_get_max_threads() << std::endl;
+#else
+    std::cout << "OpenMP NOT enabled\n";
+#endif
+
+    // --- Serial ---
+    auto start = std::chrono::high_resolution_clock::now();
+    CMatrix* resS = mSerial[0]->Multiply(*mSerial[1]);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto serialTime = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    // --- Parallel ---
+    start = std::chrono::high_resolution_clock::now();
+    CMatrix* resP = mParallel[0]->Multiply(*mParallel[1]);
+    end = std::chrono::high_resolution_clock::now();
+    auto parallelTime = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    std::cout << "Serial time:   " << serialTime << " us (" << serialTime/1e6 << " s)\n";
+    std::cout << "Parallel time: " << parallelTime << " us (" << parallelTime/1e6 << " s)\n";
+
+    delete resS;
+    delete resP;
+    for (auto* p : mSerial) delete p;
+    for (auto* p : mParallel) delete p;
+
+    return 0;
+}
